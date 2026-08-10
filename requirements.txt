@@ -1,0 +1,14 @@
+duckdb==1.5.5
+fastapi==0.140.0
+joblib==1.5.3
+langgraph==1.2.9
+numpy==2.5.1
+pandas==2.3.3
+plotly==6.9.0
+pyarrow==21.0.0
+pydantic-settings==2.14.2
+python-multipart==0.0.32
+scikit-learn==1.9.0
+sqlalchemy==2.0.51
+streamlit==1.60.0
+uvicorn[standard]==0.51.0

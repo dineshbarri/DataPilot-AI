@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: datapilot-ai-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: ARTIFACT_ROOT
+        value: /app/artifacts
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+

@@ -1,0 +1,63 @@
+services:
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      ARTIFACT_ROOT: /app/artifacts
+      DATABASE_URL: sqlite:////app/artifacts/datapilot.db
+    volumes:
+      - datapilot_artifacts:/app/artifacts
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 2g
+    cpus: 2
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      ARTIFACT_ROOT: /app/artifacts
+      DATABASE_URL: sqlite:////app/artifacts/datapilot.db
+      CORS_ORIGINS: http://localhost:8501
+    volumes:
+      - datapilot_artifacts:/app/artifacts
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 2g
+    cpus: 2
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+
+volumes:
+  datapilot_artifacts:
+
