@@ -67,6 +67,18 @@ class ModelResult(BaseModel):
     cross_validation_mean: float | None = None
     cross_validation_std: float | None = None
     training_seconds: float
+    selection_score: float | None = None
+    final_test_score: float | None = None
+    final_test_metrics: dict[str, float] = Field(default_factory=dict)
+
+
+class ModelFailure(BaseModel):
+    name: str
+    stage: str
+    exception_category: str
+    sanitized_error: str
+    training_seconds: float
+    expected: bool = False
 
 
 class CriticDecision(BaseModel):
@@ -92,6 +104,7 @@ class RunSummary(BaseModel):
     quality_issues: list[QualityIssue]
     evidence: list[Evidence]
     model_results: list[ModelResult]
+    model_failures: list[ModelFailure] = Field(default_factory=list)
     best_model: str
     critic: CriticDecision
     explainability: ExplainabilityResult

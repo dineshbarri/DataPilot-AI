@@ -10,14 +10,15 @@
 [![LangGraph](https://img.shields.io/badge/LangGraph-Stateful_Agents-1C1C1C?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-Recruiter_Demo-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Production_API-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![CI](https://img.shields.io/badge/CI-Pytest_%7C_Ruff_%7C_Docker-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
+[![CI](https://github.com/dineshbarri/DataPilot-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/dineshbarri/DataPilot-AI/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-F5C518?style=for-the-badge)](LICENSE)
 
-**[Live Demo — add after Streamlit deployment](#deployment)** ·
 **[API Docs](#fastapi)** ·
 **[Architecture](docs/ARCHITECTURE.md)** ·
 **[Security](docs/SECURITY.md)** ·
-**[Model Governance](docs/MODEL_GOVERNANCE.md)**
+**[Model Governance](docs/MODEL_GOVERNANCE.md)** ·
+**[Benchmarks](docs/BENCHMARKS.md)** ·
+**[API Examples](docs/API_EXAMPLES.md)**
 
 </div>
 
@@ -51,14 +52,14 @@ No account, upload or API key is required.
 
 | Stage | What DataPilot does | Evidence produced |
 |---|---|---|
-| Data intake | Accepts bounded CSV/Parquet or one of three packaged sklearn demos | row/column limits and validated schema |
+| Data intake | Accepts bounded CSV, TSV, Excel, JSON, Parquet or packaged demos | row/column limits and validated schema |
 | Data quality | Detects missingness, duplicates, target gaps, imbalance, outliers and leakage-like fields | evidence registry with IDs, source and method |
 | EDA | Uses DuckDB and pandas for compact profiles, cardinality and correlations | dataset profile and statistical summary |
 | Planning | Infers classification/regression, primary metric, validation strategy and risk controls | typed Pydantic analysis plan |
 | Feature engineering | Builds numeric and categorical transformers inside the model pipeline | transformation plan and fitted pipeline |
-| Modeling | Compares linear, forest, extra-trees, histogram boosting and optional XGBoost models | holdout and cross-validation results |
+| Modeling | Selects linear, forest, extra-trees and optional XGBoost models by training-only CV | CV mean/stability and one-time untouched test results |
 | Evaluation | Applies thresholds and validation-consistency checks | critic approval, rejection reasons and retry count |
-| Explainability | Uses SHAP when compatible and permutation importance as a reliable fallback | ranked predictive signals and caveats |
+| Explainability | Uses SHAP only when the optional dependency and fitted estimator are compatible; otherwise permutation importance | ranked predictive signals and caveats |
 | Reporting | Produces a dashboard, evidence-backed narrative and portable artifacts | HTML report, model card, JSON, joblib pipeline |
 | Follow-up | Answers questions from persisted run evidence | bounded, non-hallucinatory responses |
 
@@ -66,7 +67,8 @@ No account, upload or API key is required.
 
 ## Real agentic orchestration
 
-This is not a list of prompts executed in sequence. The critic controls a conditional edge:
+The “agents” are typed LangGraph nodes combining deterministic Python computation with optional,
+evidence-bounded LLM narration. The critic controls a conditional edge:
 weak or unstable analysis returns to the modeling node before explanation is allowed.
 
 ```mermaid
@@ -105,7 +107,7 @@ pipeline.fit(x_train, y_train)
 - Split occurs before learned preprocessing.
 - Cross-validation refits the complete pipeline in every fold.
 - Classification defaults to balanced accuracy and stratification where possible.
-- Holdout and cross-validation results are shown separately.
+- Candidates are selected only by training-partition CV; the selected model touches the test set once.
 - Target-like names and identifier cardinality are flagged for human review.
 - Predictive importance is never described as causality.
 
@@ -122,8 +124,10 @@ The Streamlit application is summary-first and useful before any upload:
 - **Agent trace:** visible orchestration and retry behavior.
 - **Artifacts and Q&A:** downloads, evidence registry and run-specific questions.
 
-> Add a real application screenshot to `assets/` after deployment; do not use a fabricated UI
-> mockup as evidence of a working demo.
+![DataPilot production architecture](docs/architecture.svg)
+
+The public demo URL is intentionally not claimed until a monitored deployment exists. Add a
+real browser capture under `assets/` together with the deployment URL after release validation.
 
 ---
 
@@ -164,7 +168,8 @@ DataPilot-AI/
 ├── worker/main.py            # optional isolated calculation worker
 ├── tests/                    # quality, safety, API and end-to-end workflow tests
 ├── docs/                     # architecture, deployment, security and governance
-├── streamlit_app.py          # recruiter-facing application
+├── app.py                    # canonical premium Streamlit implementation
+├── streamlit_app.py          # Streamlit Cloud compatibility shim
 ├── Dockerfile*               # non-root UI, API and worker images
 ├── docker-compose.yml        # constrained local multi-service stack
 ├── render.yaml               # Render API deployment blueprint
@@ -187,9 +192,12 @@ python -m venv .venv
 # macOS/Linux
 source .venv/bin/activate
 
-pip install -r requirements.txt
-streamlit run streamlit_app.py
+pip install -e ".[dev]"
+streamlit run app.py
 ```
+
+For the validated Python 3.12 reference environment, use `pip install -r requirements.lock`.
+The lock snapshot is refreshed after dependency updates and tested across supported interpreters.
 
 Open <http://localhost:8501>.
 
@@ -217,6 +225,11 @@ curl -X POST http://localhost:8000/v1/analyze/sample \
   -d "{\"sample\":\"iris\"}"
 ```
 
+The API returns `202 Accepted` with a job ID. Poll `GET /v1/jobs/{job_id}` and cancel queued
+work with `DELETE /v1/jobs/{job_id}`. Set `API_KEY` in deployed environments and send it as
+`X-API-Key`. The bundled in-process queue is for development; use the production topology in
+`docs/ARCHITECTURE.md` for durable execution.
+
 ### Docker
 
 ```bash
@@ -239,6 +252,10 @@ Copy `.env.example` to `.env`.
 | `MAX_UPLOAD_MB` | `25` | Public upload protection |
 | `MAX_ROWS` | `100000` | Maximum rows per analysis |
 | `MAX_COLUMNS` | `250` | Maximum feature width |
+| `MAX_CATEGORIES_PER_FEATURE` | `100` | Bound categorical expansion |
+| `MAX_ENCODED_FEATURES` | `5000` | Refuse unsafe estimated encoded width |
+| `API_KEY` | empty | Optional API authentication; required for public deployment |
+| `REQUESTS_PER_MINUTE` | `30` | Per-client API rate limit |
 | `MAX_CRITIC_RETRIES` | `1` | Conditional modeling retry budget |
 | `ENABLE_MLFLOW` | `false` | Enable optional experiment tracking |
 | `GEMINI_API_KEY` | empty | Optional narrative refinement only |
@@ -252,11 +269,12 @@ No credential is embedded in the repository.
 ```bash
 pip install -e ".[dev]"
 ruff check .
-pytest --cov=datapilot --cov=api --cov-report=term-missing
-python -m compileall datapilot api worker streamlit_app.py
+pytest --cov=datapilot --cov=api --cov-fail-under=75
+python -m compileall datapilot api worker app.py streamlit_app.py
 ```
 
-CI repeats these checks on Python 3.12 and builds both public-facing Docker images.
+CI runs Python 3.11, 3.12 and 3.13, enforces coverage, builds the package and all three images,
+audits dependencies, scans containers with Trivy, and performs secret detection.
 
 ---
 
@@ -276,9 +294,9 @@ must survive container replacement. See [the deployment guide](docs/DEPLOYMENT.m
 
 ### Production recommendation
 
-For long jobs, turn the synchronous analysis endpoint into a job API backed by a queue and
-separate workers. Use PostgreSQL for state, S3-compatible storage for artifacts, and
-short-lived sandboxed workers for any future code-execution capability.
+The included in-process job manager makes local requests non-blocking. For durable production
+jobs, replace it with a queue and separate workers, PostgreSQL state, S3-compatible artifacts,
+and short-lived sandboxed workers for any future code-execution capability.
 
 ---
 

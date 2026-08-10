@@ -18,7 +18,10 @@ def deterministic_insights(state: dict[str, Any]) -> tuple[list[str], list[str]]
             f"The analysis used {profile.rows:,} rows and {profile.columns:,} columns for a "
             f"{profile.task_type.value} task targeting '{profile.target}'."
         ),
-        (f"{best.name} ranked first with holdout {best.primary_metric} {best.primary_score:.3f}."),
+        (
+            f"{best.name} ranked first with training CV {best.primary_metric} {best.primary_score:.3f}; "
+            f"its one-time test score was {best.final_test_score:.3f}."
+        ),
         (
             f"{len(quality)} data-quality observations were recorded; "
             f"{sum(issue.severity.value == 'critical' for issue in quality)} are critical."
@@ -74,7 +77,8 @@ def answer_follow_up(run: dict[str, Any], question: str) -> str:
         top = run["model_results"][0]
         return (
             f"The best model was **{top['name']}**, with {top['primary_metric']} "
-            f"**{top['primary_score']:.3f}** on the held-out test set."
+            f"training-CV **{top['selection_score']:.3f}** and one-time test "
+            f"**{top['final_test_score']:.3f}**."
         )
     if any(token in lowered for token in {"feature", "important", "driver"}):
         importance = run["explainability"]["feature_importance"]
@@ -91,8 +95,10 @@ def answer_follow_up(run: dict[str, Any], question: str) -> str:
         return "Quality observations: " + "; ".join(item["message"] for item in issues[:6])
     if any(token in lowered for token in {"metric", "performance", "score"}):
         top = run["model_results"][0]
-        formatted = ", ".join(f"{key}={value:.3f}" for key, value in top["metrics"].items())
-        return f"Best-model holdout metrics: {formatted}."
+        formatted = ", ".join(
+            f"{key}={value:.3f}" for key, value in top["final_test_metrics"].items()
+        )
+        return f"Selected-model one-time test metrics: {formatted}."
     return (
         "I can answer evidence-backed questions about the best model, performance metrics, "
         "data quality, leakage risk, and feature importance for this run."

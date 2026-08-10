@@ -67,7 +67,8 @@ def _model_card(run: dict[str, Any]) -> str:
 - Task: {profile["task_type"]}
 - Target: `{profile["target"]}`
 - Selected model: **{run["best_model"]}**
-- Primary holdout metric: `{best["primary_metric"]} = {best["primary_score"]:.4f}`
+- Training-CV selection metric: `{best["primary_metric"]} = {best["selection_score"]:.4f}`
+- One-time untouched test metric: `{best["primary_metric"]} = {best["final_test_score"]:.4f}`
 - Training rows before split: {profile["rows"]:,}
 
 ## Intended use
@@ -78,7 +79,7 @@ out-of-time data before any consequential or production use.
 ## Evaluation
 
 ```json
-{json.dumps(best["metrics"], indent=2)}
+{json.dumps(best["final_test_metrics"], indent=2)}
 ```
 
 ## Data-quality observations
@@ -112,7 +113,7 @@ def _html_report(run: dict[str, Any]) -> str:
     )
     metrics = "".join(
         f"<tr><td>{html.escape(name)}</td><td>{value:.4f}</td></tr>"
-        for name, value in best["metrics"].items()
+        for name, value in best["final_test_metrics"].items()
     )
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
@@ -128,7 +129,7 @@ td,th{{border-bottom:1px solid #e2e6ef;padding:10px;text-align:left}} small{{col
 <p>{html.escape(run["dataset_name"])} · Run {html.escape(run["run_id"])}</p></div>
 <div class="grid">
 <div class="card"><small>Selected model</small><h2>{html.escape(run["best_model"])}</h2></div>
-<div class="card"><small>{html.escape(best["primary_metric"])}</small><h2>{best["primary_score"]:.3f}</h2></div>
+<div class="card"><small>Test {html.escape(best["primary_metric"])}</small><h2>{best["final_test_score"]:.3f}</h2></div>
 <div class="card"><small>Rows analyzed</small><h2>{run["profile"]["rows"]:,}</h2></div>
 </div>
 <h2>Executive findings</h2><ul>{summary_items}</ul>

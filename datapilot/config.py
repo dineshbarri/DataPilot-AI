@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     max_upload_mb: int = Field(default=25, ge=1, le=250)
     max_rows: int = Field(default=100_000, ge=100)
     max_columns: int = Field(default=250, ge=2)
+    max_categories_per_feature: int = Field(default=100, ge=10, le=10_000)
+    max_encoded_features: int = Field(default=5_000, ge=100, le=100_000)
+    api_key: str | None = None
+    requests_per_minute: int = Field(default=30, ge=1, le=10_000)
     random_state: int = 42
     test_size: float = Field(default=0.2, gt=0.05, lt=0.5)
     max_critic_retries: int = Field(default=1, ge=0, le=3)

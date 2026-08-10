@@ -148,9 +148,9 @@ def planning_agent(state: AgentState) -> dict[str, Any]:
         target=profile.target,
         task_type=profile.task_type,
         primary_metric=metric,
-        validation_strategy="Stratified holdout + cross-validation"
+        validation_strategy="Training-only stratified cross-validation; untouched final test evaluation"
         if profile.task_type == TaskType.classification
-        else "Random holdout + cross-validation",
+        else "Training-only cross-validation; untouched final test evaluation",
         candidate_models=candidates,
         risk_controls=[
             "Drop rows with missing target before split",
@@ -315,6 +315,8 @@ def run_analysis(
             {"run_id": run_id, "dataset_name": dataset_name, "status": "failed", "error": str(exc)},
         )
         raise
+    finally:
+        store.engine.dispose()
 
 
 def _summary_payload(state: AgentState, run_id: str, dataset_name: str) -> dict[str, Any]:
@@ -328,6 +330,7 @@ def _summary_payload(state: AgentState, run_id: str, dataset_name: str) -> dict[
         "quality_issues": [item.model_dump(mode="json") for item in state["quality_issues"]],
         "evidence": [item.model_dump(mode="json") for item in state["evidence"]],
         "model_results": [item.model_dump(mode="json") for item in bundle.results],
+        "model_failures": [item.model_dump(mode="json") for item in bundle.failures],
         "best_model": bundle.best_model,
         "critic": state["critic"].model_dump(mode="json"),
         "explainability": state["explainability"].model_dump(mode="json"),

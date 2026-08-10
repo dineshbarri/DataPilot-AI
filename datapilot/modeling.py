@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -11,8 +12,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import (
     ExtraTreesClassifier,
     ExtraTreesRegressor,
-    HistGradientBoostingClassifier,
-    HistGradientBoostingRegressor,
     RandomForestClassifier,
     RandomForestRegressor,
 )
@@ -36,6 +35,7 @@ from datapilot.config import Settings
 from datapilot.schemas import (
     CriticDecision,
     ExplainabilityResult,
+    ModelFailure,
     ModelResult,
     TaskType,
 )
@@ -50,9 +50,13 @@ class TrainingBundle:
     test_features: pd.DataFrame
     test_target: pd.Series
     retry_number: int
+    failures: list[ModelFailure]
 
 
-def _preprocessor(features: pd.DataFrame) -> ColumnTransformer:
+logger = logging.getLogger(__name__)
+
+
+def _preprocessor(features: pd.DataFrame, settings: Settings) -> ColumnTransformer:
     numeric = features.select_dtypes(include=np.number).columns.tolist()
     categorical = [column for column in features.columns if column not in numeric]
     numeric_pipeline = Pipeline(
@@ -66,7 +70,12 @@ def _preprocessor(features: pd.DataFrame) -> ColumnTransformer:
             ("imputer", SimpleImputer(strategy="most_frequent")),
             (
                 "encoder",
-                OneHotEncoder(handle_unknown="ignore", min_frequency=2, sparse_output=False),
+                OneHotEncoder(
+                    handle_unknown="infrequent_if_exist",
+                    min_frequency=2,
+                    max_categories=settings.max_categories_per_feature,
+                    sparse_output=True,
+                ),
             ),
         ]
     )
@@ -99,9 +108,6 @@ def _candidate_models(task: TaskType, settings: Settings, retry: int) -> dict[st
                 n_jobs=-1,
                 random_state=settings.random_state,
             ),
-            "Histogram Gradient Boosting": HistGradientBoostingClassifier(
-                max_iter=120 + retry * 60, random_state=settings.random_state
-            ),
         }
     else:
         models = {
@@ -116,9 +122,6 @@ def _candidate_models(task: TaskType, settings: Settings, retry: int) -> dict[st
                 n_estimators=180 + retry * 80,
                 n_jobs=-1,
                 random_state=settings.random_state,
-            ),
-            "Histogram Gradient Boosting": HistGradientBoostingRegressor(
-                max_iter=120 + retry * 60, random_state=settings.random_state
             ),
         }
     try:
@@ -155,11 +158,26 @@ def train_models(
     settings: Settings,
     retry_number: int = 0,
 ) -> TrainingBundle:
+    if target not in frame.columns:
+        raise ValueError(f"Target column '{target}' does not exist.")
     clean = frame.dropna(subset=[target]).drop_duplicates().reset_index(drop=True)
     features = clean.drop(columns=[target]).copy()
     labels = clean[target].copy()
     if features.empty:
         raise ValueError("No usable feature columns remain after removing the target.")
+    if labels.nunique(dropna=True) < 2:
+        raise ValueError("The target must contain at least two distinct non-null values.")
+    categorical = features.select_dtypes(exclude=np.number)
+    estimated_width = len(features.select_dtypes(include=np.number).columns) + sum(
+        min(int(categorical[column].nunique(dropna=True)), settings.max_categories_per_feature)
+        for column in categorical.columns
+    )
+    if estimated_width > settings.max_encoded_features:
+        raise ValueError(
+            f"Estimated encoded width {estimated_width:,} exceeds the safe limit of "
+            f"{settings.max_encoded_features:,}. Reduce high-cardinality columns or increase "
+            "MAX_ENCODED_FEATURES after reviewing memory capacity."
+        )
     stratify = (
         labels if task == TaskType.classification and labels.value_counts().min() >= 2 else None
     )
@@ -171,7 +189,7 @@ def train_models(
         stratify=stratify,
     )
     results: list[ModelResult] = []
-    fitted: dict[str, Pipeline] = {}
+    failures: list[ModelFailure] = []
     cv = min(5, max(2, int(len(x_train) / 20)))
     if task == TaskType.classification:
         smallest_class = int(y_train.value_counts().min())
@@ -179,11 +197,13 @@ def train_models(
         scoring = "balanced_accuracy"
     else:
         scoring = "r2"
+    if cv < 2:
+        raise ValueError("The training partition is too small for reliable cross-validation.")
 
     candidates = _candidate_models(task, settings, retry_number)
     tuned_parameters = tune_random_forest(
         task,
-        _preprocessor(x_train),
+        _preprocessor(x_train, settings),
         x_train,
         y_train,
         settings,
@@ -193,12 +213,11 @@ def train_models(
         candidates["Random Forest"].set_params(**tuned_parameters)
 
     for name, estimator in candidates.items():
-        pipeline = Pipeline([("preprocessor", _preprocessor(x_train)), ("model", estimator)])
+        pipeline = Pipeline(
+            [("preprocessor", _preprocessor(x_train, settings)), ("model", estimator)]
+        )
         started = time.perf_counter()
         try:
-            pipeline.fit(x_train, y_train)
-            predictions = pipeline.predict(x_test)
-            metrics = _metrics(task, y_test, predictions, pipeline, x_test)
             cv_scores = (
                 cross_val_score(pipeline, x_train, y_train, scoring=scoring, cv=cv, n_jobs=1)
                 if cv >= 2
@@ -207,31 +226,57 @@ def train_models(
             result = ModelResult(
                 name=name,
                 primary_metric="balanced_accuracy" if task == TaskType.classification else "r2",
-                primary_score=float(
-                    metrics["balanced_accuracy"]
-                    if task == TaskType.classification
-                    else metrics["r2"]
-                ),
-                metrics=metrics,
+                primary_score=float(cv_scores.mean()),
+                metrics={},
                 cross_validation_mean=float(cv_scores.mean()) if len(cv_scores) else None,
                 cross_validation_std=float(cv_scores.std()) if len(cv_scores) else None,
                 training_seconds=round(time.perf_counter() - started, 3),
+                selection_score=float(cv_scores.mean()) if len(cv_scores) else None,
             )
             results.append(result)
-            fitted[name] = pipeline
-        except Exception:
-            continue
+        except Exception as exc:
+            logger.warning(
+                "Candidate %s failed during cross-validation: %s", name, type(exc).__name__
+            )
+            failures.append(
+                ModelFailure(
+                    name=name,
+                    stage="cross_validation",
+                    exception_category=type(exc).__name__,
+                    sanitized_error="Candidate failed during cross-validation; inspect structured logs.",
+                    training_seconds=round(time.perf_counter() - started, 3),
+                    expected=isinstance(exc, (ValueError, TypeError)),
+                )
+            )
     if not results:
         raise RuntimeError("Every candidate model failed; review the data types and target.")
-    results.sort(key=lambda item: item.primary_score, reverse=True)
+    results.sort(key=lambda item: item.selection_score or float("-inf"), reverse=True)
     best = results[0]
+    final_pipeline = Pipeline(
+        [
+            ("preprocessor", _preprocessor(x_train, settings)),
+            ("model", candidates[best.name]),
+        ]
+    )
+    final_pipeline.fit(x_train, y_train)
+    predictions = final_pipeline.predict(x_test)
+    final_metrics = _metrics(task, y_test, predictions, final_pipeline, x_test)
+    final_score = (
+        final_metrics["balanced_accuracy"]
+        if task == TaskType.classification
+        else final_metrics["r2"]
+    )
+    best.final_test_score = float(final_score)
+    best.final_test_metrics = final_metrics
+    best.metrics = final_metrics
     return TrainingBundle(
-        pipeline=fitted[best.name],
+        pipeline=final_pipeline,
         results=results,
         best_model=best.name,
         test_features=x_test,
         test_target=y_test,
         retry_number=retry_number,
+        failures=failures,
     )
 
 
@@ -267,13 +312,15 @@ def critic_decision(bundle: TrainingBundle, task: TaskType, settings: Settings) 
         else settings.min_regression_score
     )
     reasons: list[str] = []
-    if best.primary_score < threshold:
+    quality_score = best.cross_validation_mean if best.cross_validation_mean is not None else -1.0
+    if quality_score < threshold:
         reasons.append(
-            f"Holdout {best.primary_metric} {best.primary_score:.3f} is below {threshold:.3f}."
+            f"Training CV {best.primary_metric} {quality_score:.3f} is below {threshold:.3f}."
         )
     if (
         best.cross_validation_mean is not None
-        and abs(best.primary_score - best.cross_validation_mean) > 0.2
+        and best.final_test_score is not None
+        and abs(best.final_test_score - best.cross_validation_mean) > 0.2
     ):
         reasons.append("Holdout and cross-validation scores diverge by more than 0.20.")
     approved = not reasons or bundle.retry_number >= settings.max_critic_retries
@@ -283,7 +330,7 @@ def critic_decision(bundle: TrainingBundle, task: TaskType, settings: Settings) 
         reasons.append("Retry budget exhausted; result is retained with an explicit limitation.")
     return CriticDecision(
         approved=approved,
-        score=best.primary_score,
+        score=quality_score,
         threshold=threshold,
         reasons=reasons,
         retry_number=bundle.retry_number,

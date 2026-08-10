@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="330" viewBox="0 0 1200 330">
+  <style>.b{fill:#101d31;stroke:#49d7c5;stroke-width:2}.t{fill:#eef5ff;font:600 17px sans-serif}.s{fill:#9fb2c9;font:14px sans-serif}.a{stroke:#6d8dff;stroke-width:3;marker-end:url(#m)}</style>
+  <defs><marker id="m" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#6d8dff"/></marker></defs>
+  <rect width="1200" height="330" rx="24" fill="#07111f"/>
+  <g transform="translate(35 105)"><rect class="b" width="160" height="90" rx="16"/><text class="t" x="80" y="38" text-anchor="middle">Client</text><text class="s" x="80" y="63" text-anchor="middle">Streamlit / API</text></g>
+  <g transform="translate(250 105)"><rect class="b" width="170" height="90" rx="16"/><text class="t" x="85" y="38" text-anchor="middle">Authenticated API</text><text class="s" x="85" y="63" text-anchor="middle">limits · job contract</text></g>
+  <g transform="translate(475 105)"><rect class="b" width="160" height="90" rx="16"/><text class="t" x="80" y="38" text-anchor="middle">Job queue</text><text class="s" x="80" y="63" text-anchor="middle">retry · cancel</text></g>
+  <g transform="translate(690 105)"><rect class="b" width="170" height="90" rx="16"/><text class="t" x="85" y="38" text-anchor="middle">Isolated worker</text><text class="s" x="85" y="63" text-anchor="middle">LangGraph · sklearn</text></g>
+  <g transform="translate(915 40)"><rect class="b" width="245" height="70" rx="16"/><text class="t" x="122" y="32" text-anchor="middle">PostgreSQL</text><text class="s" x="122" y="53" text-anchor="middle">run state · migrations</text></g>
+  <g transform="translate(915 130)"><rect class="b" width="245" height="70" rx="16"/><text class="t" x="122" y="32" text-anchor="middle">Object storage</text><text class="s" x="122" y="53" text-anchor="middle">signed artifacts</text></g>
+  <g transform="translate(915 220)"><rect class="b" width="245" height="70" rx="16"/><text class="t" x="122" y="32" text-anchor="middle">Telemetry</text><text class="s" x="122" y="53" text-anchor="middle">MLflow · OpenTelemetry</text></g>
+  <path class="a" d="M195 150H245"/><path class="a" d="M420 150H470"/><path class="a" d="M635 150H685"/><path class="a" d="M860 145L910 80"/><path class="a" d="M860 150H910"/><path class="a" d="M860 155L910 250"/>
+</svg>

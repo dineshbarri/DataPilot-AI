@@ -11,9 +11,20 @@ import numpy as np
 import pandas as pd
 
 TARGET_WORDS = {
-    "target": 1.0, "label": 1.0, "outcome": .95, "class": .9, "churn": .95,
-    "fraud": .95, "default": .9, "price": .8, "revenue": .75, "sales": .75,
-    "diagnosis": .9, "status": .7, "response": .8, "converted": .9,
+    "target": 1.0,
+    "label": 1.0,
+    "outcome": 0.95,
+    "class": 0.9,
+    "churn": 0.95,
+    "fraud": 0.95,
+    "default": 0.9,
+    "price": 0.8,
+    "revenue": 0.75,
+    "sales": 0.75,
+    "diagnosis": 0.9,
+    "status": 0.7,
+    "response": 0.8,
+    "converted": 0.9,
 }
 PII_PATTERN = re.compile(r"(email|phone|mobile|address|ssn|passport|account|name)", re.I)
 
@@ -41,22 +52,37 @@ def inspect_dataset(frame: pd.DataFrame) -> dict[str, Any]:
         fingerprint=hashlib.sha256(
             pd.util.hash_pandas_object(frame, index=True).values.tobytes()
         ).hexdigest()[:12],
-        rows=len(frame), columns=len(frame.columns), numeric=len(numeric),
-        categorical=len(categorical), datetime=len(datetime),
-        missing_cells=int(missing.sum()), duplicate_rows=int(frame.duplicated().sum()),
+        rows=len(frame),
+        columns=len(frame.columns),
+        numeric=len(numeric),
+        categorical=len(categorical),
+        datetime=len(datetime),
+        missing_cells=int(missing.sum()),
+        duplicate_rows=int(frame.duplicated().sum()),
         memory_mb=round(float(frame.memory_usage(deep=True).sum() / 1_048_576), 2),
     )
     dictionary = build_data_dictionary(frame)
-    quality_score = max(0, round(
-        100 - (brief.missing_cells / max(1, frame.size)) * 45
-        - (brief.duplicate_rows / max(1, brief.rows)) * 25
-        - sum(dictionary["issue_count"].clip(upper=3)) / max(1, len(dictionary)) * 4
-    ))
+    quality_score = max(
+        0,
+        round(
+            100
+            - (brief.missing_cells / max(1, frame.size)) * 45
+            - (brief.duplicate_rows / max(1, brief.rows)) * 25
+            - sum(dictionary["issue_count"].clip(upper=3)) / max(1, len(dictionary)) * 4
+        ),
+    )
     return {
-        "brief": brief, "dictionary": dictionary, "targets": rank_target_candidates(frame),
-        "quality_score": quality_score, "missing": missing.sort_values(ascending=False),
-        "numeric": numeric, "categorical": categorical, "datetime": datetime,
-        "correlation": frame[numeric].corr(numeric_only=True) if len(numeric) > 1 else pd.DataFrame(),
+        "brief": brief,
+        "dictionary": dictionary,
+        "targets": rank_target_candidates(frame),
+        "quality_score": quality_score,
+        "missing": missing.sort_values(ascending=False),
+        "numeric": numeric,
+        "categorical": categorical,
+        "datetime": datetime,
+        "correlation": frame[numeric].corr(numeric_only=True)
+        if len(numeric) > 1
+        else pd.DataFrame(),
     }
 
 
@@ -71,7 +97,7 @@ def build_data_dictionary(frame: pd.DataFrame) -> pd.DataFrame:
             issues.append("Missing values")
         if unique <= 1:
             issues.append("Constant")
-        if len(frame) and unique / len(frame) > .98:
+        if len(frame) and unique / len(frame) > 0.98:
             issues.append("Identifier-like")
         if PII_PATTERN.search(str(column)):
             issues.append("Potential PII")
@@ -80,12 +106,21 @@ def build_data_dictionary(frame: pd.DataFrame) -> pd.DataFrame:
             role = "Datetime"
         elif unique == len(frame) and len(frame) > 10:
             role = "Identifier"
-        rows.append({
-            "column": str(column), "type": str(series.dtype), "role": role, "unique": unique,
-            "missing": missing, "missing_%": round(missing / max(1, len(frame)) * 100, 2),
-            "example_values": ", ".join(map(str, series.dropna().astype(str).unique()[:3]))[:90],
-            "issues": ", ".join(issues) or "None detected", "issue_count": len(issues),
-        })
+        rows.append(
+            {
+                "column": str(column),
+                "type": str(series.dtype),
+                "role": role,
+                "unique": unique,
+                "missing": missing,
+                "missing_%": round(missing / max(1, len(frame)) * 100, 2),
+                "example_values": ", ".join(map(str, series.dropna().astype(str).unique()[:3]))[
+                    :90
+                ],
+                "issues": ", ".join(issues) or "None detected",
+                "issue_count": len(issues),
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -96,22 +131,26 @@ def rank_target_candidates(frame: pd.DataFrame) -> list[dict[str, Any]]:
         series, name = frame[column], str(column).lower().strip()
         cardinality = int(series.nunique(dropna=True))
         score = max((v for word, v in TARGET_WORDS.items() if word in name), default=0.0)
-        if 2 <= cardinality <= max(20, int(len(frame) * .1)):
-            score += .22
+        if 2 <= cardinality <= max(20, int(len(frame) * 0.1)):
+            score += 0.22
         if position == len(frame.columns) - 1:
-            score += .12
-        if cardinality >= max(10, int(len(frame) * .95)):
-            score -= .45
-        if series.isna().mean() > .5 or cardinality < 2:
-            score -= .5
-        task = "classification" if cardinality <= max(20, int(len(frame) * .05)) else "regression"
+            score += 0.12
+        if cardinality >= max(10, int(len(frame) * 0.95)):
+            score -= 0.45
+        if series.isna().mean() > 0.5 or cardinality < 2:
+            score -= 0.5
+        task = "classification" if cardinality <= max(20, int(len(frame) * 0.05)) else "regression"
         if pd.api.types.is_numeric_dtype(series) and cardinality > 20:
             task = "regression"
-        ranked.append({
-            "column": str(column), "task": task, "confidence": round(max(0, min(score, .99)), 2),
-            "reason": f"{cardinality:,} distinct values; "
-            + ("name/position signals detected" if score > .3 else "weak heuristic evidence"),
-        })
+        ranked.append(
+            {
+                "column": str(column),
+                "task": task,
+                "confidence": round(max(0, min(score, 0.99)), 2),
+                "reason": f"{cardinality:,} distinct values; "
+                + ("name/position signals detected" if score > 0.3 else "weak heuristic evidence"),
+            }
+        )
     return sorted(ranked, key=lambda item: item["confidence"], reverse=True)[:5]
 
 
@@ -126,7 +165,8 @@ def ai_context(frame: pd.DataFrame, profile: dict[str, Any], excluded: list[str]
         "numeric_summary": safe.select_dtypes(include=np.number).describe().round(3).to_dict(),
         "sample": safe.head(3).replace({np.nan: None}).to_dict(orient="records"),
         "excluded_columns": sorted(set(excluded + pii)),
-        "quality_score": profile["quality_score"], "target_candidates": profile["targets"],
+        "quality_score": profile["quality_score"],
+        "target_candidates": profile["targets"],
     }
 
 
@@ -146,7 +186,9 @@ Limitation, Recommendation. Explain likely row grain and useful business questio
 uncertain semantics as assumptions. Never invent values, origin, or causal claims.
 DATA:\n""" + json.dumps(ai_context(frame, profile, excluded), default=str)
     try:
-        response = genai.Client(api_key=api_key).models.generate_content(model=model, contents=prompt)
+        response = genai.Client(api_key=api_key).models.generate_content(
+            model=model, contents=prompt
+        )
         return response.text
     except Exception as exc:
         raise ValueError(f"Gemini request failed: {str(exc)[:240]}") from exc
