@@ -1,0 +1,1 @@
+"""Isolated calculation worker."""

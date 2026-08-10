@@ -1,0 +1,14 @@
+age,income,region,converted
+22,32000,north,0
+25,38000,south,0
+29,45000,north,0
+31,51000,west,0
+35,57000,east,0
+38,62000,south,1
+41,68000,east,1
+44,74000,north,1
+49,83000,west,1
+53,91000,south,1
+57,98000,east,1
+61,105000,north,1
+

@@ -1,0 +1,16 @@
+name: Feature request
+description: Propose a product, ML, platform, or evaluation improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes: {label: Problem, description: Which user or engineering problem should this solve?}
+    validations: {required: true}
+  - type: textarea
+    id: proposal
+    attributes: {label: Proposed approach}
+    validations: {required: true}
+  - type: textarea
+    id: risks
+    attributes: {label: Privacy, security, and ML risks}
