@@ -12,3 +12,6 @@ scikit-learn==1.9.0
 sqlalchemy==2.0.51
 streamlit==1.60.0
 uvicorn[standard]==0.51.0
+google-genai==1.75.0
+openpyxl==3.1.5
+xlrd==2.0.2
