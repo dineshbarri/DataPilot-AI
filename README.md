@@ -8,7 +8,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.11--3.13-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-Stateful_Agents-1C1C1C?style=for-the-badge)](https://langchain-ai.github.io/langgraph/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-Recruiter_Demo-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://datapilot-ai-agent.streamlit.app/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-Recruiter_Demo-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://huggingface.co/spaces/dineshb/DataPilot-AI-Agent)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Production_API-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![CI](https://github.com/dineshbarri/DataPilot-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/dineshbarri/DataPilot-AI/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-F5C518?style=for-the-badge)](LICENSE)
