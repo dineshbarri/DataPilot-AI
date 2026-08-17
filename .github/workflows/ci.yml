@@ -37,7 +37,7 @@ jobs:
       - name: Generate example model card
         if: matrix.python-version == '3.12'
         run: python scripts/generate_example_model_card.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: matrix.python-version == '3.12'
         with:
           name: evaluation-evidence
@@ -55,7 +55,7 @@ jobs:
       - run: pip install build twine
       - run: python -m build
       - run: twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: python-package
           path: dist/
@@ -104,7 +104,7 @@ jobs:
         if: github.actor != 'dependabot[bot]'
         with:
           sarif_file: "trivy-${{ matrix.image }}.sarif"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: "trivy-${{ matrix.image }}"
